@@ -38,9 +38,29 @@ OpenCLI 通过 Chrome 浏览器 + [Playwright MCP Bridge](https://github.com/nic
 
 - **Node.js**: >= 18.0.0
 - **Chrome** 浏览器正在运行，且**已登录目标网站**（如 bilibili.com、zhihu.com、xiaohongshu.com）
-- 安装 **[Playwright MCP Bridge](https://chromewebstore.google.com/detail/playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm)** 扩展
 
-你必须将 `PLAYWRIGHT_MCP_EXTENSION_TOKEN`（在插件设置页获取）配置到环境变量或者你的 MCP 配置文件中：
+> **⚠️ 重要**：大多数命令复用你的 Chrome 登录状态。运行命令前，你必须已在 Chrome 中打开目标网站并完成登录。如果获取到空数据或报错，请先检查你的浏览器登录状态。
+
+为了让 OpenCLI 能够联通你的浏览器，你需要配置连接方式。**强烈建议以下两种方式都配置上**，互为后备：
+
+### 连接方式 A：Chrome 144+ CDP 自动发现（推荐）
+
+无需安装任何扩展。只需开启 Chrome 内置的远程调试：
+
+1. 在 Chrome 中打开 `chrome://inspect#remote-debugging`
+2. 勾选 **"允许对此浏览器实例进行远程调试" (Allow remote debugging for this browser instance)**
+3. 运行时设置环境变量 `OPENCLI_USE_CDP=1`
+
+*也可通过 `OPENCLI_CDP_ENDPOINT` 环境变量手动指定 CDP endpoint 地址。*
+
+### 连接方式 B：Playwright MCP Bridge 扩展
+
+1. 安装 **[Playwright MCP Bridge](https://chromewebstore.google.com/detail/playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm)** 扩展
+2. 在插件设置页获取你的 Extension Token。
+
+**你必须将这个 Token 同时配置到你的 MCP 配置文件以及环境变量中。**
+
+首先，配置你的 MCP 客户端（如 Claude/Cursor 等）：
 
 ```json
 {
@@ -56,23 +76,11 @@ OpenCLI 通过 Chrome 浏览器 + [Playwright MCP Bridge](https://github.com/nic
 }
 ```
 
-如果你是在终端里直接运行 `opencli`，也可以直接将其 export 为环境变量：
+并且，为了让 `opencli` 命令行也能直接使用它，你必须在你的终端系统环境变量中导出它（建议写进 `~/.zshrc` 或 `~/.bashrc`）：
 
 ```bash
 export PLAYWRIGHT_MCP_EXTENSION_TOKEN="<你的-token>"
 ```
-
-#### 可选：Chrome 144+ CDP 自动发现
-
-如果使用 Chrome 144+，可以跳过扩展，改用内置远程调试：
-
-1. 在 Chrome 中打开 `chrome://inspect#remote-debugging`
-2. 勾选 **"允许对此浏览器实例进行远程调试"**
-3. 运行时设置 `OPENCLI_USE_CDP=1`
-
-也可通过 `OPENCLI_CDP_ENDPOINT` 环境变量手动指定 CDP endpoint。（注：公共 API 命令如 `hackernews`、`github search` 等无需浏览器即可运行。）
-
-> **⚠️ 重要**：浏览器命令复用你的 Chrome 登录状态。运行命令前，你必须已在 Chrome 中登录目标网站。如果获取到空数据或报错，请先检查登录状态。
 
 ## 快速开始
 

@@ -38,9 +38,29 @@ A CLI tool that turns **any website** into a command-line interface. **47 comman
 
 - **Node.js**: >= 18.0.0
 - **Chrome** running **and logged into the target site** (e.g. bilibili.com, zhihu.com, xiaohongshu.com).
-- **[Playwright MCP Bridge](https://chromewebstore.google.com/detail/playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm)** extension installed in Chrome.
 
-You need to configure `PLAYWRIGHT_MCP_EXTENSION_TOKEN` (obtained from the extension settings page) in your environment or MCP config:
+> **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands. If you get empty data or errors, check your login status first.
+
+OpenCLI needs a way to communicate with your browser. We highly recommend configuring **both** of the following methods for maximum reliability.
+
+### Connection Method A: Chrome 144+ Auto-Discovery (Recommended)
+
+No extensions needed. Just enable Chrome's built-in remote debugging:
+
+1. Open `chrome://inspect#remote-debugging` in Chrome
+2. Check **"Allow remote debugging for this browser instance"**
+3. Set `OPENCLI_USE_CDP=1` before running opencli
+
+*You can also manually specify an endpoint via `OPENCLI_CDP_ENDPOINT` env var.*
+
+### Connection Method B: Playwright MCP Bridge Extension
+
+1. Install **[Playwright MCP Bridge](https://chromewebstore.google.com/detail/playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm)** extension in Chrome.
+2. Obtain your token from the extension settings page.
+
+**You must configure this token in BOTH your MCP configuration and system environment variables.**
+
+First, add it to your MCP client config (e.g. Claude/Cursor):
 
 ```json
 {
@@ -56,23 +76,11 @@ You need to configure `PLAYWRIGHT_MCP_EXTENSION_TOKEN` (obtained from the extens
 }
 ```
 
-Or just export it if you are running `opencli` directly in terminal:
+And, so that `opencli` commands can use it directly in the terminal, export it in your shell environment (e.g. `~/.zshrc`):
 
 ```bash
 export PLAYWRIGHT_MCP_EXTENSION_TOKEN="<your-token-here>"
 ```
-
-#### Alternative: Chrome 144+ CDP Auto-Discovery
-
-For Chrome 144+, you can skip the extension and use built-in remote debugging instead:
-
-1. Open `chrome://inspect#remote-debugging` in Chrome
-2. Check **"Allow remote debugging for this browser instance"**
-3. Set `OPENCLI_USE_CDP=1` before running opencli
-
-You can also manually specify an endpoint via `OPENCLI_CDP_ENDPOINT` env var. (Note: Public API commands like `hackernews`, `github search`, `v2ex` need no browser at all.)
-
-> **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands. If you get empty data or errors, check your login status first.
 
 ## Quick Start
 
