@@ -32,23 +32,24 @@ tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation, 
 
 ### AI Agent 探索工作流（必须遵循）
 
-| 步骤 | 工具 | 做什么 |
+| 步骤 | 命令 | 做什么 |
 |------|------|--------|
-| 0. 打开浏览器 | `browser_navigate` | 导航到目标页面 |
-| 1. 观察页面 | `browser_snapshot` | 观察可交互元素（按钮/标签/链接） |
-| 2. 首次抓包 | `browser_network_requests` | 筛选 JSON API 端点，记录 URL pattern |
-| 3. 模拟交互 | `browser_click` + `browser_wait_for` | 点击"字幕""评论""关注"等按钮 |
-| 4. 二次抓包 | `browser_network_requests` | 对比步骤 2，找出新触发的 API |
-| 5. 验证 API | `browser_evaluate` | `fetch(url, {credentials:'include'})` 测试返回结构 |
-| 6. 写代码 | — | 基于确认的 API 写适配器 |
+| 0. 打开浏览器 | `opencli browser open <url>` | 导航到目标页面 |
+| 1. 观察页面 | `opencli browser state` | 观察可交互元素（按钮/标签/链接），带 `[N]` 索引 |
+| 2. 首次抓包 | `opencli browser network` | 筛选 JSON API 端点，记录 URL pattern |
+| 3. 模拟交互 | `opencli browser click <N>` + `opencli browser wait time 2` | 点击"字幕""评论""关注"等按钮 |
+| 4. 二次抓包 | `opencli browser network` | 对比步骤 2，找出新触发的 API |
+| 5. 查看响应 | `opencli browser network --detail <N>` | 查看目标 API 的完整响应体 |
+| 6. 验证 API | `opencli browser eval "fetch('<API URL>', {credentials:'include'}).then(r=>r.json())"` | 用实际 URL 替换 `<API URL>`，验证 API 可复现 |
+| 7. 写代码 | — | 基于确认的 API 写适配器 |
 
 ### 常犯错误
 
 | ❌ 错误做法 | ✅ 正确做法 |
 |------------|------------|
-| 只用 `opencli explore` 命令，等结果自动出来 | 用浏览器工具打开页面，主动浏览 |
-| 直接在代码里 `fetch(url)`，不看浏览器实际请求 | 先在浏览器中确认 API 可用，再写代码 |
-| 页面打开后直接抓包，期望所有 API 都出现 | 模拟点击交互（展开评论/切换标签/加载更多） |
+| 只用 `opencli explore` 命令，等结果自动出来 | 用 `opencli browser open` 打开页面，主动浏览 |
+| 直接在代码里 `fetch(url)`，不看浏览器实际请求 | 先用 `opencli browser network` 确认 API 可用，再写代码 |
+| 页面打开后直接抓包，期望所有 API 都出现 | 用 `opencli browser click` 模拟交互（展开评论/切换标签/加载更多） |
 | 遇到 HTTP 200 但空数据就放弃 | 检查是否需要 Wbi 签名或 Cookie 鉴权 |
 | 完全依赖 `__INITIAL_STATE__` 拿所有数据 | `__INITIAL_STATE__` 只有首屏数据，深层数据要调 API |
 
@@ -56,16 +57,18 @@ tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation, 
 
 以下是用上述工作流实际发现 Bilibili 关注列表 API 的完整过程：
 
-```
-1. browser_navigate → https://space.bilibili.com/{uid}/fans/follow
-2. browser_network_requests → 发现:
-   GET /x/relation/followings?vmid={uid}&pn=1&ps=24  →  [200]
-   GET /x/relation/stat?vmid={uid}                    →  [200]
-3. browser_evaluate → 验证 API:
-   fetch('/x/relation/followings?vmid=137702077&pn=1&ps=5', {credentials:'include'})
-   → { code: 0, data: { total: 1342, list: [{mid, uname, sign, ...}] } }
-4. 结论：标准 Cookie API，无需 Wbi 签名
-5. 写 following.ts → 一次构建通过
+```bash
+1. opencli browser open https://space.bilibili.com/{uid}/fans/follow
+2. opencli browser network
+   # 发现:
+   #   [0] GET 200 /x/relation/followings?vmid={uid}&pn=1&ps=24
+   #   [1] GET 200 /x/relation/stat?vmid={uid}
+3. opencli browser network --detail 0
+   # 查看完整响应体，确认数据结构
+4. opencli browser eval "fetch('/x/relation/followings?vmid=137702077&pn=1&ps=5', {credentials:'include'}).then(r=>r.json())"
+   # → { code: 0, data: { total: 1342, list: [{mid, uname, sign, ...}] } }
+5. 结论：标准 Cookie API，无需 Wbi 签名
+6. 写 following.ts → 一次构建通过
 ```
 
 **关键决策点**：
@@ -88,9 +91,22 @@ tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation, 
 
 ## Step 1: 发现 API
 
-### 1a. 自动化发现（推荐）
+### 1a. 浏览器主动探索（主路径）
 
-OpenCLI 内置 Deep Explore，自动分析网站网络请求：
+**必须先用 `opencli browser` 主动打开网站、观察请求、模拟交互。** 这是发现 API 的主路径：
+
+```bash
+opencli browser open https://www.example.com        # 打开目标页面
+opencli browser state                                # 观察可交互元素
+opencli browser network                              # 查看已捕获的 API 请求
+opencli browser click <N>                            # 点击按钮/标签触发懒加载 API
+opencli browser network                              # 再看一次，找新触发的 API
+opencli browser network --detail <N>                 # 查看目标 API 完整响应体
+```
+
+### 1b. `opencli explore` 辅助分析（补充，不替代浏览器探索）
+
+`opencli explore` 是自动化辅助工具，用于**补充**浏览器探索的发现。它能批量分析请求并生成结构化报告，但**不能替代**浏览器主动探索——懒加载 API、需要交互才触发的请求，它发现不了。
 
 ```bash
 opencli explore https://www.example.com --site mysite
@@ -105,15 +121,9 @@ opencli explore https://www.example.com --site mysite
 | `capabilities.json` | 推理出的功能（`hot`、`search`、`feed`…），含置信度和推荐参数 |
 | `auth.json` | 认证方式检测（Cookie/Header/无认证），策略候选列表 |
 
-### 1b. 手动抓包验证
-
-Explore 的自动分析可能不完美，用 verbose 模式手动确认：
+### 1c. 已有命令的数据流查看
 
 ```bash
-# 在浏览器中打开目标页面，观察网络请求
-opencli explore https://www.example.com --site mysite -v
-
-# 或直接用 evaluate 测试 API
 opencli bilibili hot -v   # 查看已有命令的 pipeline 每步数据流
 ```
 
@@ -139,7 +149,7 @@ Explore 自动检测前端框架。如果需要手动确认：
 
 ```bash
 # 在已打开目标网站的情况下
-opencli evaluate "(()=>{
+opencli browser eval "(()=>{
   const vue3 = !!document.querySelector('#app')?.__vue_app__;
   const vue2 = !!document.querySelector('#app')?.__vue__;
   const react = !!window.__REACT_DEVTOOLS_GLOBAL_HOOK__;
@@ -571,10 +581,10 @@ opencli mysite hot --limit 3 -f json   # JSON 输出确认字段完整
 在浏览器中打开目标网站后：
 
 ```bash
-opencli evaluate "(() => {
+opencli browser eval "(() => {
   const app = document.querySelector('#app')?.__vue_app__;
   const pinia = app?.config?.globalProperties?.\$pinia;
-  return [...pinia._s.keys()];
+  return JSON.stringify([...pinia._s.keys()]);
 })()"
 # 输出: ["user", "feed", "search", "notification", ...]
 ```
@@ -588,10 +598,12 @@ opencli evaluate "(() => {
 💡 Available: getNotification, replyComment, getNotificationCount, reset
 ```
 
-#### Step 3: 用 network requests 确认 capture 模式
+#### Step 3: 用 network 确认 capture 模式
 
 ```bash
-# 在浏览器打开目标页面，查看网络请求
+# 在浏览器打开目标页面后，查看网络请求
+opencli browser network                  # 列出捕获的 API 请求
+opencli browser network --detail <N>     # 查看第 N 条的完整响应
 # 找到目标 API 的 URL 特征（如 "/you/mentions"、"homefeed"）
 ```
 
